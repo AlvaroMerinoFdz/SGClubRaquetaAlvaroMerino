@@ -204,6 +204,33 @@ namespace SGClubRaquetaAlvaroMerino
             }
         }
 
+        private bool comprobarHora(TimeSpan horaBD, TimeSpan horaReserva)
+        {
+            bool correcto;
+           
+            //calculamos el intervalo entre las dos
+            TimeSpan intervalo = horaReserva - horaBD;
+
+            if ((Math.Abs(intervalo.Hours)) < 1)
+            {
+                correcto = false;
+            }
+            else if(Math.Abs(intervalo.Hours)>=2)
+            {
+                correcto = true;
+            }else if ((Math.Abs(intervalo.Minutes)) >= 30)
+            {
+                //Si solo hay una hora de diferencia en el intervalo se mira que haya 30 minutos o más de espacio
+                correcto = true;
+            }
+            else
+            {
+                correcto = false;
+            }
+            return correcto;
+
+        }
+
         private void btnReservar_Click(object sender, EventArgs e)
         {
             int idPista = int.Parse(listaCodPista[cmbPista.SelectedIndex].ToString());
@@ -237,25 +264,45 @@ namespace SGClubRaquetaAlvaroMerino
                 }
                 else
                 {
-                    //Si la pista está libre tenemos que pedir un mensaje de confimación
-                    DialogResult respuesta = MessageBox.Show("La pista está libre \n ¿Quieres alquilarla?","Alquilar Pista", MessageBoxButtons.YesNo,MessageBoxIcon.Information);
-                    if(respuesta == DialogResult.Yes)
+                    //3º Comprobamos que la pista no está alquilada ni hora y media antes, ni hora y media después
+                    this.reservasTableAdapter.FillByPistaDia(dsBD.reservas, dtpFecha.Value.ToString(), idPista);
+                    ArrayList reservas = new ArrayList(0);
+                    for (int i = 0; i < dsBD.reservas.Count; i++)
                     {
-                        //Si la pista está libre procedemos a realizar la reserva, es decir a realizar el insert en la BBDD.
-                        //3º Realizar el cálcula del coste de la reserva de 1h y 30 min, una vez hecho
-                        //   se inserta en la tabla correspondiente poiendo campo pagado a NO.
-                        pistasTableAdapter.FillByPistaID(dsBD.pistas, int.Parse(listaCodPista[cmbPista.SelectedIndex].ToString()));
+                       
+                        TimeSpan horaBd = dsBD.reservas[i].hora;
 
-                        //Calculamos el precio
-                        int precioHora = int.Parse(dsBD.pistas[0].precioHora.ToString());
-                        decimal precio = (decimal)(precioHora * 1.5);
+                        if (!comprobarHora(horaBd, hora))
+                        {
+                            reservas.Add(i);
+                        }
+                    }
+                    if(reservas.Count > 0)
+                    {
+                        MessageBox.Show("La pista ya tiene una reserva en ese horario", "Error al reservar", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    }
+                    else
+                    {
+                        //Si la pista está libre tenemos que pedir un mensaje de confimación
+                        DialogResult respuesta = MessageBox.Show("La pista está libre \n ¿Quieres alquilarla?", "Alquilar Pista", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+                        if (respuesta == DialogResult.Yes)
+                        {
+                            //Si la pista está libre procedemos a realizar la reserva, es decir a realizar el insert en la BBDD.
+                            //4º Realizar el cálcula del coste de la reserva de 1h y 30 min, una vez hecho
+                            //   se inserta en la tabla correspondiente poiendo campo pagado a NO.
+                            pistasTableAdapter.FillByPistaID(dsBD.pistas, int.Parse(listaCodPista[cmbPista.SelectedIndex].ToString()));
 
-                        //Insertamos la reserva en la tabla
-                        reservasTableAdapter.InsertReserva(dtpFecha.Value.ToString(), hora.ToString(), idPista, lblDniSocio.Text.ToString(), precio);
+                            //Calculamos el precio
+                            int precioHora = int.Parse(dsBD.pistas[0].precioHora.ToString());
+                            decimal precio = (decimal)(precioHora * 1.5);
+
+                            //Insertamos la reserva en la tabla
+                            reservasTableAdapter.InsertReserva(dtpFecha.Value.ToString(), hora.ToString(), idPista, lblDniSocio.Text.ToString(), precio);
 
 
-                        //4º Refrescar los datos de dgv, de manera que refleje la nueva reserva.
-                        cargarReservasSocio();
+                            //5º Refrescar los datos de dgv, de manera que refleje la nueva reserva.
+                            cargarReservasSocio();
+                        }
                     }
                 }
             }
